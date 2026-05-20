@@ -1,0 +1,9 @@
+# Залежності для розробки та тестування.
+# Production-сервер встановлює тільки requirements.txt.
+#
+# Локально: pip install -r requirements-dev.txt
+# CI:        pip install -r requirements-dev.txt && pytest
+
+-r requirements.txt
+
+pytest>=8.0.0

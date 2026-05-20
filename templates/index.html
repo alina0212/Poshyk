@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>SemanticUA — Пошук по документу</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#0d0f17;
+  --bg2:#13151f;
+  --surface:#1a1d2e;
+  --surface2:#20243a;
+  --border:#ffffff0f;
+  --border2:#ffffff18;
+  --ink:#e8eaf0;
+  --muted:#6b7290;
+  --muted2:#4a5068;
+  --p1:#7c6ff7;
+  --p2:#5b8af7;
+  --g1:#06d6a0;
+  --g2:#00b4d8;
+  --warn:#ff6b6b;
+  --mark:#ffd60a33;
+  --mark-text:#ffd60a;
+  --sem-bg:#06d6a015;
+  --sem-text:#06d6a0;
+  --r:14px;
+  --r2:10px;
+  --glow:0 0 30px rgba(124,111,247,.15);
+}
+
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);
+  color:var(--ink);
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* ── TOPBAR ──────────────────────────── */
+.topbar{
+  background:rgba(13,15,23,.8);
+  backdrop-filter:blur(20px);
+  -webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:.75rem 1.5rem;
+  display:flex;
+  align-items:center;
+  gap:1.2rem;
+  position:sticky;
+  top:0;
+  z-index:60;
+  flex-shrink:0;
+}
+
+.logo{
+  font-weight:700;
+  font-size:1.25rem;
+  letter-spacing:-.5px;
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  -webkit-background-clip:text;
+  -webkit-text-fill-color:transparent;
+  background-clip:text;
+  white-space:nowrap;
+  flex-shrink:0;
+  cursor:pointer;
+  user-select:none;
+}
+.logo span{
+  -webkit-text-fill-color:#ffffff22;
+}
+
+/* search */
+.sw{position:relative;flex:1;max-width:580px}
+.sb{
+  width:100%;
+  padding:.65rem 3rem .65rem 1.2rem;
+  font-family:'Inter',sans-serif;
+  font-size:.9rem;
+  border:1px solid var(--border2);
+  border-radius:50px;
+  background:var(--surface);
+  outline:none;
+  transition:all .25s;
+  color:var(--ink);
+}
+.sb::placeholder{color:var(--muted2)}
+.sb:focus{
+  background:var(--surface2);
+  border-color:var(--p1);
+  box-shadow:0 0 0 3px rgba(124,111,247,.12), var(--glow);
+}
+.sb:disabled{opacity:.35;cursor:not-allowed}
+.sbtn{
+  position:absolute;right:6px;top:50%;transform:translateY(-50%);
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  border:none;border-radius:50%;width:34px;height:34px;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .2s;box-shadow:0 2px 12px rgba(124,111,247,.4);
+}
+.sbtn:hover{transform:translateY(-50%) scale(1.08);box-shadow:0 4px 20px rgba(124,111,247,.6)}
+.sbtn:disabled{opacity:.3;cursor:not-allowed;box-shadow:none}
+.sbtn svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:2.2}
+
+/* algo chips */
+.chips{display:flex;gap:.4rem;flex-shrink:0}
+.chip{
+  padding:.35rem .9rem;border-radius:50px;font-size:.78rem;font-weight:500;
+  border:1px solid var(--border2);background:transparent;
+  cursor:pointer;transition:all .2s;color:var(--muted);
+  font-family:'Inter',sans-serif;letter-spacing:-.2px;
+}
+.chip:hover{border-color:var(--p1);color:var(--p1)}
+.chip.active{
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  color:#fff;border-color:transparent;
+  box-shadow:0 2px 12px rgba(124,111,247,.35);
+}
+.chip.active.bm{
+  background:linear-gradient(135deg,var(--g1),var(--g2));
+  box-shadow:0 2px 12px rgba(6,214,160,.3);
+}
+
+/* model badge */
+.mbadge{
+  display:inline-flex;align-items:center;gap:.45rem;font-size:.72rem;font-weight:500;
+  padding:.25rem .75rem;border-radius:50px;border:1px solid var(--border2);
+  background:var(--surface);color:var(--muted);white-space:nowrap;flex-shrink:0;
+}
+.mbadge .dot{width:7px;height:7px;border-radius:50%;background:var(--muted2);flex-shrink:0}
+.mbadge.loading .dot{background:#f0a500;animation:pulse 1.4s infinite}
+.mbadge.ready   .dot{background:var(--g1);box-shadow:0 0 6px var(--g1)}
+.mbadge.error   .dot{background:var(--warn)}
+@keyframes pulse{0%,100%{opacity:.3;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
+
+/* ── LAYOUT ────────────────────────── */
+.body{display:flex;flex:1;overflow:hidden;height:calc(100vh - 57px)}
+
+/* ── LEFT PANEL ──────────────────── */
+.panel-left{
+  width:272px;flex-shrink:0;
+  border-right:1px solid var(--border);
+  background:var(--bg2);
+  display:flex;flex-direction:column;
+  overflow-y:auto;padding:1.25rem;
+  gap:.25rem;
+}
+.panel-left::-webkit-scrollbar{width:4px}
+.panel-left::-webkit-scrollbar-track{background:transparent}
+.panel-left::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+.panel-label{
+  font-size:.65rem;font-weight:600;text-transform:uppercase;
+  letter-spacing:.1em;color:var(--muted2);
+  margin-bottom:.5rem;margin-top:.5rem;
+}
+
+/* upload zone */
+.upload-zone{
+  border:1.5px dashed var(--border2);border-radius:var(--r);
+  padding:1.6rem 1rem;text-align:center;cursor:pointer;
+  transition:all .25s;margin-bottom:.75rem;
+  background:var(--surface);position:relative;
+}
+.upload-zone:hover,.upload-zone.drag{
+  border-color:var(--p1);
+  background:rgba(124,111,247,.06);
+  box-shadow:0 0 20px rgba(124,111,247,.1);
+}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.uz-icon{
+  width:44px;height:44px;border-radius:12px;margin:0 auto .75rem;
+  background:linear-gradient(135deg,rgba(124,111,247,.2),rgba(91,138,247,.2));
+  display:flex;align-items:center;justify-content:center;font-size:1.3rem;
+}
+.uz-title{font-size:.85rem;font-weight:600;color:var(--ink);margin-bottom:.3rem}
+.uz-sub{font-size:.72rem;color:var(--muted);line-height:1.5}
+
+/* doc card */
+.doc-card{
+  background:linear-gradient(135deg,rgba(124,111,247,.08),rgba(91,138,247,.06));
+  border:1px solid rgba(124,111,247,.2);border-radius:var(--r);
+  padding:1rem 1rem .85rem;margin-bottom:.75rem;display:none;
+}
+.doc-card.show{display:block}
+.doc-name{
+  font-weight:600;font-size:.85rem;margin-bottom:.7rem;
+  display:flex;align-items:center;gap:.5rem;color:var(--ink);
+}
+.doc-icon{
+  width:28px;height:28px;border-radius:8px;flex-shrink:0;
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  display:flex;align-items:center;justify-content:center;font-size:.85rem;
+}
+.doc-fname{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.doc-stats{display:grid;grid-template-columns:1fr 1fr;gap:.35rem .5rem}
+.doc-stat{
+  background:var(--surface);border-radius:8px;padding:.35rem .55rem;
+  display:flex;flex-direction:column;gap:.1rem;
+}
+.doc-stat .ds-label{font-size:.62rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.05em}
+.doc-stat .ds-val{font-size:.82rem;font-weight:600;color:var(--p1)}
+.btn-clear{
+  width:100%;margin-top:.75rem;padding:.4rem;border-radius:8px;
+  border:1px solid var(--border2);background:transparent;
+  font-family:'Inter',sans-serif;font-size:.73rem;font-weight:500;
+  cursor:pointer;color:var(--muted);transition:all .2s;
+}
+.btn-clear:hover{border-color:var(--warn);color:var(--warn);background:rgba(255,107,107,.06)}
+
+/* upload progress */
+.uprog{display:none;margin-bottom:.75rem}
+.uprog.show{display:block}
+.uprog-bar-wrap{
+  height:3px;background:var(--surface2);border-radius:4px;
+  overflow:hidden;margin-top:.5rem;
+}
+.uprog-bar{
+  height:100%;border-radius:4px;transition:width .3s;width:0;
+  background:linear-gradient(90deg,var(--p1),var(--p2),var(--g1));
+  background-size:200% 100%;animation:shimmer 1.5s linear infinite;
+}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.uprog-txt{font-size:.72rem;color:var(--muted);font-weight:500}
+
+/* model steps */
+.msteps{display:flex;flex-direction:column;gap:.3rem}
+.mstep{
+  font-size:.73rem;padding:.4rem .7rem;border-radius:var(--r2);
+  border:1px solid var(--border);background:var(--surface);
+  color:var(--muted);transition:all .4s;
+  display:flex;align-items:center;gap:.5rem;font-weight:500;
+}
+.mstep-icon{font-size:.8rem;opacity:.7}
+.mstep.done{
+  background:rgba(6,214,160,.07);border-color:rgba(6,214,160,.25);
+  color:var(--g1);
+}
+.mstep.done .mstep-icon{opacity:1}
+.mstep.act{
+  background:rgba(124,111,247,.08);border-color:rgba(124,111,247,.3);
+  color:var(--p1);animation:pulse 1.4s infinite;
+}
+
+/* ── RIGHT PANEL ────────────────── */
+.panel-right{flex:1;overflow-y:auto;padding:1.5rem 2rem}
+.panel-right::-webkit-scrollbar{width:4px}
+.panel-right::-webkit-scrollbar-track{background:transparent}
+.panel-right::-webkit-scrollbar-thumb{background:var(--border2);border-radius:4px}
+
+/* empty state */
+.empty-state{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  height:100%;text-align:center;gap:.75rem;padding:2rem;
+}
+.es-gfx{
+  width:80px;height:80px;border-radius:24px;margin-bottom:.5rem;
+  background:linear-gradient(135deg,rgba(124,111,247,.15),rgba(91,138,247,.1));
+  display:flex;align-items:center;justify-content:center;font-size:2.2rem;
+  border:1px solid rgba(124,111,247,.15);
+}
+.es-title{font-size:1.05rem;font-weight:600;color:var(--ink)}
+.es-sub{font-size:.85rem;color:var(--muted);max-width:340px;line-height:1.65}
+.es-pills{display:flex;gap:.5rem;flex-wrap:wrap;justify-content:center;margin-top:.25rem}
+.es-pill{
+  font-size:.75rem;padding:.3rem .75rem;border-radius:50px;
+  border:1px solid var(--border2);color:var(--muted);
+}
+
+/* pipeline box */
+.pbox{
+  border:1px solid var(--border2);border-radius:var(--r);
+  padding:.9rem 1.1rem;margin-bottom:1rem;font-size:.78rem;
+  display:none;background:var(--surface);
+}
+.pbox.show{display:block}
+.pbox-title{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin-bottom:.6rem}
+.pstages{display:flex;gap:.35rem;align-items:stretch;flex-wrap:wrap}
+.ps{
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--r2);
+  padding:.4rem .7rem;font-size:.7rem;min-width:100px;flex:1;
+}
+.ps b{display:block;font-size:.73rem;color:var(--p1);margin-bottom:.15rem;font-weight:600}
+.ps span{color:var(--muted)}
+.ps small{display:block;color:var(--muted2);font-size:.65rem;margin-top:.1rem}
+.parr{color:var(--muted2);align-self:center;font-size:.8rem}
+
+/* meta bar */
+.meta{
+  font-size:.78rem;color:var(--muted);margin-bottom:1rem;
+  display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;
+}
+.meta strong{color:var(--ink)}
+.mb{
+  background:var(--surface);border:1px solid var(--border2);border-radius:50px;
+  padding:.15rem .6rem;font-size:.7rem;font-weight:500;color:var(--p1);
+}
+.mb.g{color:var(--g1)}
+
+/* result card */
+.card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:1.1rem 1.3rem;margin-bottom:.7rem;
+  transition:border-color .2s,box-shadow .2s,transform .15s;
+  animation:fadeUp .25s ease both;
+  position:relative;overflow:hidden;
+}
+.card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:1px;
+  background:linear-gradient(90deg,transparent,rgba(124,111,247,.3),transparent);
+  opacity:0;transition:opacity .2s;
+}
+.card:hover{
+  border-color:rgba(124,111,247,.3);
+  box-shadow:0 4px 24px rgba(0,0,0,.3),0 0 0 1px rgba(124,111,247,.08);
+  transform:translateY(-1px);
+}
+.card:hover::before{opacity:1}
+
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.card:nth-child(1){animation-delay:.03s}
+.card:nth-child(2){animation-delay:.08s}
+.card:nth-child(3){animation-delay:.13s}
+.card:nth-child(4){animation-delay:.18s}
+.card:nth-child(5){animation-delay:.23s}
+
+.r-header{display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem}
+.r-num{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:22px;height:22px;border-radius:6px;
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  color:#fff;font-size:.65rem;font-weight:700;flex-shrink:0;
+}
+.r-para{font-size:.72rem;color:var(--muted);font-weight:500}
+
+.r-snip{font-size:.88rem;color:var(--ink);line-height:1.75}
+.r-snip mark{
+  background:var(--mark);color:var(--mark-text);
+  border-radius:3px;padding:0 2px;font-weight:600;
+}
+.r-snip mark.sem{
+  background:var(--sem-bg);color:var(--sem-text);font-weight:400;
+}
+
+.r-foot{display:flex;align-items:center;gap:.4rem;margin-top:.75rem;flex-wrap:wrap}
+
+/* score badge */
+.score-badge{
+  display:inline-flex;align-items:center;gap:.3rem;
+  font-size:.72rem;font-weight:600;padding:.2rem .65rem;border-radius:50px;
+}
+.score-badge.high{background:rgba(6,214,160,.12);color:var(--g1);border:1px solid rgba(6,214,160,.25)}
+.score-badge.mid{background:rgba(124,111,247,.1);color:var(--p1);border:1px solid rgba(124,111,247,.2)}
+.score-badge.low{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+
+.pill{font-size:.68rem;font-weight:500;border-radius:50px;padding:.15rem .55rem;border:1px solid}
+.pill-bi{color:var(--p2);background:rgba(91,138,247,.08);border-color:rgba(91,138,247,.2)}
+.pill-bm{color:var(--muted);background:var(--surface2);border-color:var(--border)}
+
+/* semantic similar words */
+.sim-words{
+  margin-top:.6rem;display:flex;align-items:center;flex-wrap:wrap;gap:.3rem;
+  padding-top:.6rem;border-top:1px solid var(--border);
+}
+.sim-label{font-size:.65rem;color:var(--muted2);font-weight:500;margin-right:.1rem}
+.sim-tag{
+  font-size:.67rem;padding:.1rem .5rem;border-radius:50px;
+  background:rgba(6,214,160,.08);color:var(--sem-text);
+  border:1px solid rgba(6,214,160,.2);font-weight:500;
+}
+
+/* loading */
+.loading{display:flex;gap:6px;justify-content:center;padding:4rem}
+.d{
+  width:8px;height:8px;border-radius:50%;
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  animation:bounce .9s infinite ease-in-out;
+}
+.d:nth-child(2){animation-delay:.18s}
+.d:nth-child(3){animation-delay:.36s}
+@keyframes bounce{0%,80%,100%{transform:scale(.4);opacity:.3}40%{transform:scale(1);opacity:1}}
+
+/* pagination */
+.pag{display:flex;gap:.35rem;justify-content:center;margin-top:2rem;margin-bottom:1rem}
+.pb{
+  width:34px;height:34px;border-radius:10px;border:1px solid var(--border2);
+  background:var(--surface);cursor:pointer;font-size:.8rem;font-weight:500;
+  font-family:'Inter',sans-serif;transition:all .18s;color:var(--muted);
+  display:flex;align-items:center;justify-content:center;
+}
+.pb:hover{border-color:var(--p1);color:var(--p1)}
+.pb.active{
+  background:linear-gradient(135deg,var(--p1),var(--p2));
+  color:#fff;border-color:transparent;
+  box-shadow:0 2px 10px rgba(124,111,247,.35);
+}
+
+/* toast */
+.toast{
+  position:fixed;bottom:1.5rem;left:50%;
+  transform:translateX(-50%) translateY(80px);
+  background:linear-gradient(135deg,#ff6b6b,#ee5a24);
+  color:#fff;padding:.65rem 1.4rem;border-radius:50px;
+  font-size:.83rem;font-weight:500;z-index:999;
+  transition:transform .3s cubic-bezier(.34,1.56,.64,1);
+  box-shadow:0 4px 24px rgba(255,107,107,.4);
+}
+.toast.show{transform:translateX(-50%) translateY(0)}
+
+/* divider */
+.divider{height:1px;background:var(--border);margin:.75rem 0}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo" onclick="goHome()">Semantic<span>UA</span></div>
+
+  <div class="sw">
+    <input id="qinput" class="sb" type="text"
+           placeholder="Введіть запит для пошуку…"
+           autocomplete="off" disabled>
+    <button id="sbtn" class="sbtn" onclick="doSearch()" disabled>
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/>
+        <line x1="16.5" y1="16.5" x2="22" y2="22"/></svg>
+    </button>
+  </div>
+
+  <div class="chips">
+    <button class="chip active" id="ch-s" onclick="setAlgo('semantic')"
+            title="Нейронний пошук — розуміє сенс запиту">🔬 Семантичний</button>
+    <button class="chip bm" id="ch-bm" onclick="setAlgo('bm25')"
+            title="Пошук за точними словами">⚡ За словами</button>
+  </div>
+
+  <div class="mbadge loading" id="mbadge">
+    <span class="dot"></span>
+    <span id="mbadge-txt">Завантажую моделі…</span>
+  </div>
+</div>
+
+<!-- BODY -->
+<div class="body">
+
+  <!-- LEFT -->
+  <div class="panel-left">
+    <div class="panel-label">Документ</div>
+
+    <div class="upload-zone" id="drop-zone">
+      <input type="file" id="file-input" accept=".txt,.pdf,.docx,.doc,.md"
+             onchange="handleFile(this.files[0])">
+      <div class="uz-icon">📄</div>
+      <div class="uz-title">Перетягніть або виберіть</div>
+      <div class="uz-sub">TXT · PDF · DOCX · MD<br>до 32 МБ</div>
+    </div>
+
+    <div class="uprog" id="uprog">
+      <div class="uprog-txt" id="uprog-txt">Читаю документ…</div>
+      <div class="uprog-bar-wrap"><div class="uprog-bar" id="uprog-bar"></div></div>
+    </div>
+
+    <div class="doc-card" id="doc-card">
+      <div class="doc-name">
+        <div class="doc-icon" id="doc-icon">📄</div>
+        <span class="doc-fname" id="doc-name">—</span>
+      </div>
+      <div class="doc-stats">
+        <div class="doc-stat">
+          <span class="ds-label">Абзаців</span>
+          <span class="ds-val" id="ds-para">—</span>
+        </div>
+        <div class="doc-stat">
+          <span class="ds-label">Слів</span>
+          <span class="ds-val" id="ds-words">—</span>
+        </div>
+        <div class="doc-stat">
+          <span class="ds-label">Символів</span>
+          <span class="ds-val" id="ds-chars">—</span>
+        </div>
+        <div class="doc-stat">
+          <span class="ds-label">Формат</span>
+          <span class="ds-val" id="ds-ext">—</span>
+        </div>
+      </div>
+      <button class="btn-clear" onclick="clearDoc()">✕ Видалити документ</button>
+    </div>
+
+    <div class="divider"></div>
+    <div class="panel-label">Стан моделей</div>
+    <div class="msteps">
+      <div class="mstep act" id="ms-bi">
+        <span class="mstep-icon">🧠</span> Bi-Encoder
+      </div>
+      <div class="mstep" id="ms-fa">
+        <span class="mstep-icon">🗂</span> FAISS Index
+      </div>
+      <div class="mstep" id="ms-ce">
+        <span class="mstep-icon">⚖️</span> Cross-Encoder
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT -->
+  <div class="panel-right" id="results-panel">
+
+    <div class="empty-state" id="empty-state">
+      <div class="es-gfx">🔍</div>
+      <div class="es-title">Завантажте документ і шукайте</div>
+      <div class="es-sub">
+        Підтримуються TXT, PDF, DOCX, MD.<br>
+        Семантичний пошук розуміє сенс — знаходить навіть без точних слів.
+      </div>
+      <div class="es-pills">
+        <span class="es-pill">🔬 Bi-Encoder + Cross-Encoder</span>
+        <span class="es-pill">⚡ BM25 fallback</span>
+      </div>
+    </div>
+
+    <div id="search-content" style="display:none">
+      <div class="pbox" id="pbox"></div>
+      <div class="meta" id="meta"></div>
+      <div id="rlist"></div>
+      <div class="pag" id="pag"></div>
+    </div>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let algo = 'semantic';
+let hasDoc = false;
+
+// ── Status polling ────────────────────────────────
+function pollStatus(){
+  fetch('/status').then(r=>r.json()).then(s=>{
+    const b=document.getElementById('mbadge');
+    const t=document.getElementById('mbadge-txt');
+    b.className='mbadge '+s.status;
+
+    if(s.bi_ready)    setStep('ms-bi','done');
+    else              setStep('ms-bi','act');
+    if(s.faiss_ready) setStep('ms-fa','done');
+    else if(s.bi_ready&&s.has_document) setStep('ms-fa','act');
+    if(s.ce_ready)    setStep('ms-ce','done');
+    else if(s.faiss_ready) setStep('ms-ce','act');
+
+    if(s.status==='loading'){
+      const p=[];
+      if(!s.bi_ready) p.push('Bi-Encoder');
+      if(!s.ce_ready) p.push('Cross-Encoder');
+      t.textContent=p.length?`Завантажую ${p.join(', ')}…`:'Ініціалізація…';
+      setTimeout(pollStatus,2500);
+    } else if(s.status==='ready'){
+      t.textContent='Моделі готові';
+    } else {
+      t.textContent='BM25 режим';
+      setAlgo('bm25');
+    }
+  }).catch(()=>setTimeout(pollStatus,3000));
+}
+pollStatus();
+
+function setStep(id,cls){
+  const el=document.getElementById(id);
+  if(el) el.className='mstep '+cls;
+}
+
+// ── Algo ──────────────────────────────────────────
+function setAlgo(a){
+  algo=a;
+  document.getElementById('ch-s').classList.toggle('active',a==='semantic');
+  document.getElementById('ch-bm').classList.toggle('active',a==='bm25');
+}
+
+// ── Upload ────────────────────────────────────────
+const dropZone=document.getElementById('drop-zone');
+dropZone.addEventListener('dragover',e=>{e.preventDefault();dropZone.classList.add('drag')});
+dropZone.addEventListener('dragleave',()=>dropZone.classList.remove('drag'));
+dropZone.addEventListener('drop',e=>{
+  e.preventDefault();dropZone.classList.remove('drag');
+  const f=e.dataTransfer.files[0];if(f)handleFile(f);
+});
+
+function handleFile(file){
+  if(!file)return;
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['txt','pdf','docx','doc','md'].includes(ext)){
+    showToast('Формат .'+ext+' не підтримується');return;
+  }
+  const uprog=document.getElementById('uprog');
+  const bar=document.getElementById('uprog-bar');
+  const ptxt=document.getElementById('uprog-txt');
+  uprog.classList.add('show');
+  bar.style.width='15%';
+  ptxt.textContent='Читаю '+file.name+'…';
+  let pct=15;
+  const bt=setInterval(()=>{pct=Math.min(pct+7,88);bar.style.width=pct+'%'},300);
+  const fd=new FormData();fd.append('file',file);
+  fetch('/upload',{method:'POST',body:fd})
+    .then(r=>r.json())
+    .then(d=>{
+      clearInterval(bt);bar.style.width='100%';
+      if(d.error){uprog.classList.remove('show');bar.style.width='0';showToast(d.error);return;}
+      setTimeout(()=>{uprog.classList.remove('show');bar.style.width='0'},600);
+      showDocCard(d);hasDoc=true;enableSearch();
+      if(document.getElementById('mbadge').classList.contains('ready')){
+        setStep('ms-fa','act');pollFaiss();
+      }
+    })
+    .catch(e=>{clearInterval(bt);uprog.classList.remove('show');showToast('Помилка: '+e.message)});
+}
+
+function pollFaiss(){
+  fetch('/status').then(r=>r.json()).then(s=>{
+    if(s.faiss_ready)setStep('ms-fa','done');
+    else setTimeout(pollFaiss,1500);
+  });
+}
+
+function showDocCard(d){
+  const ext=d.filename.split('.').pop().toLowerCase();
+  const icons={pdf:'📕',docx:'📘',doc:'📘',txt:'📄',md:'📝'};
+  document.getElementById('doc-icon').textContent=icons[ext]||'📄';
+  document.getElementById('doc-name').textContent=d.filename;
+  document.getElementById('ds-para').textContent=d.meta.paragraphs;
+  document.getElementById('ds-words').textContent=fmtNum(d.meta.words);
+  document.getElementById('ds-chars').textContent=fmtNum(d.meta.chars);
+  document.getElementById('ds-ext').textContent=ext.toUpperCase();
+  document.getElementById('doc-card').classList.add('show');
+}
+
+function fmtNum(n){return n>=1000?(Math.round(n/100)/10)+'k':n}
+
+function clearDoc(){
+  fetch('/clear',{method:'POST'}).then(()=>{
+    hasDoc=false;
+    document.getElementById('doc-card').classList.remove('show');
+    document.getElementById('file-input').value='';
+    disableSearch();showEmptyState();setStep('ms-fa','');
+  });
+}
+
+function enableSearch(){
+  document.getElementById('qinput').disabled=false;
+  document.getElementById('sbtn').disabled=false;
+  document.getElementById('qinput').placeholder='Введіть запит для пошуку…';
+  document.getElementById('qinput').focus();
+}
+function disableSearch(){
+  document.getElementById('qinput').disabled=true;
+  document.getElementById('sbtn').disabled=true;
+  document.getElementById('qinput').value='';
+  document.getElementById('qinput').placeholder='Спочатку завантажте документ…';
+}
+
+function showEmptyState(){
+  document.getElementById('empty-state').style.display='flex';
+  document.getElementById('search-content').style.display='none';
+}
+function goHome(){showEmptyState();document.getElementById('qinput').value=''}
+
+// ── Search ────────────────────────────────────────
+document.getElementById('qinput').addEventListener('keydown',e=>{
+  if(e.key==='Enter')doSearch();
+});
+
+function doSearch(page){
+  if(!hasDoc)return;
+  page=page||1;
+  const q=document.getElementById('qinput').value.trim();
+  if(!q)return;
+  document.getElementById('empty-state').style.display='none';
+  document.getElementById('search-content').style.display='block';
+  document.getElementById('rlist').innerHTML=
+    '<div class="loading"><div class="d"></div><div class="d"></div><div class="d"></div></div>';
+  document.getElementById('meta').innerHTML='';
+  document.getElementById('pag').innerHTML='';
+  document.getElementById('pbox').classList.remove('show');
+  fetch(`/search?q=${encodeURIComponent(q)}&algo=${algo}&page=${page}`)
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.error==='no_document'){showEmptyState();showToast('Спочатку завантажте документ');return;}
+      render(d);
+    });
+}
+
+// ── Render ────────────────────────────────────────
+function scoreClass(pct){
+  if(pct>=80)return'high';if(pct>=65)return'mid';return'low';
+}
+
+function render(d){
+  const isSem=d.algo==='semantic';
+  const isFb=d.algo==='bm25_fallback';
+
+  document.getElementById('meta').innerHTML=`
+    Знайдено <strong>${d.total}</strong> збігів &nbsp;·&nbsp; ${d.time_ms} мс
+    <span class="mb ${isSem?'':'g'}">${isSem?'🔬 Семантичний':isFb?'⚡ За словами (семантичний будується…)':'⚡ За словами'}</span>
+    ${d.tokens&&d.tokens.length?`<span class="mb">токени: ${d.tokens.join(', ')}</span>`:''}`;
+
+  const pb=document.getElementById('pbox');
+  if(isSem&&d.pipeline&&d.pipeline.bi_ms){
+    const p=d.pipeline;
+    pb.innerHTML=`<div class="pbox-title">Пайплайн пошуку</div>
+    <div class="pstages">
+      <div class="ps"><b>① Bi-Encoder</b><span>кодування запиту</span><small>${p.bi_ms} мс</small></div>
+      <div class="parr">→</div>
+      <div class="ps"><b>② FAISS ANN</b><span>${p.candidates} кандидатів</span></div>
+      <div class="parr">→</div>
+      <div class="ps"><b>③ Cross-Encoder</b><span>re-ranking</span><small>${p.ce_ms} мс</small></div>
+      <div class="parr">→</div>
+      <div class="ps"><b>④ Фільтр ≥${p.threshold}%</b><span>пройшло: ${p.passed}</span></div>
+    </div>`;
+    pb.classList.add('show');
+  }
+
+  if(!d.results||!d.results.length){
+    document.getElementById('rlist').innerHTML=`
+      <div style="text-align:center;padding:4rem 2rem;color:var(--muted)">
+        <div style="font-size:2.5rem;opacity:.2;margin-bottom:.75rem">🔍</div>
+        <div style="font-size:.95rem;font-weight:500;color:var(--ink)">Нічого не знайдено</div>
+        <div style="font-size:.83rem;margin-top:.4rem">Спробуйте інший запит або переключіть метод пошуку</div>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('rlist').innerHTML=d.results.map((r,i)=>{
+    let scores='';
+    if(isSem){
+      const cls=scoreClass(r.ce_pct);
+      scores=`<span class="score-badge ${cls}">● ${r.ce_pct}% збіжність</span>
+              <span class="pill pill-bi">зміст: ${r.bi_pct}%</span>`;
+    } else {
+      scores=`<span class="pill pill-bm">bm25: ${r.bm25||''}</span>`;
+    }
+
+    const simRow=(isSem&&r.sim_words&&r.sim_words.length)
+      ?`<div class="sim-words">
+          <span class="sim-label">схожі слова:</span>
+          ${r.sim_words.map(w=>`<span class="sim-tag">${w}</span>`).join('')}
+        </div>`:'';
+
+    return `<div class="card">
+      <div class="r-header">
+        <div class="r-num">${r.id+1}</div>
+        <div class="r-para">Абзац ${r.id+1}</div>
+      </div>
+      <div class="r-snip">${r.snippet}</div>
+      <div class="r-foot">${scores}</div>
+      ${simRow}
+    </div>`;
+  }).join('');
+
+  const pag=document.getElementById('pag');
+  if(d.pages>1){
+    pag.innerHTML=Array.from({length:d.pages},(_,i)=>i+1)
+      .map(p=>`<button class="pb ${p===d.page?'active':''}" onclick="doSearch(${p})">${p}</button>`)
+      .join('');
+  }
+}
+
+// ── Toast ─────────────────────────────────────────
+function showToast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),3500);
+}
+</script>
+</body>
+</html>

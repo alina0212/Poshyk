@@ -1,0 +1,60 @@
+# ── Python ────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Testing / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# ── SemanticUA-специфічне ─────────────────────────────
+# Користувацький FAISS-кеш (per-session)
+cache/
+
+# Тимчасові файли при upload
+uploads/*
+!uploads/.gitkeep
+
+# Тестові артефакти
+test_fallback.py
+
+# ── IDE / Editor ──────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── OS ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ── Logs ──────────────────────────────────────────────
+*.log
+logs/
+
+# ── Secrets (на майбутнє) ─────────────────────────────
+.env.local
+.env.*.local
+secrets.json
+
+# ── Claude / Tools ────────────────────────────────────
+.claude/
