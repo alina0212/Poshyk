@@ -6,14 +6,13 @@ Flask-маршрути API з per-user ізоляцією.
 кожного користувача. ML-моделі (Bi, CE) — спільні.
 """
 
-import math
 import os
 import threading
 import uuid
 
 from flask import Blueprint, request, jsonify, send_from_directory, session as flask_session
 
-from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS, SEARCH_PER_PAGE
+from config import UPLOAD_FOLDER, ALLOWED_EXTENSIONS
 from core.state import ml, get_state, clear_state, session_count
 from core.document import extract_text, split_into_chunks
 from core.bm25 import rebuild_bm25
@@ -117,7 +116,6 @@ def search():
 
     query = request.args.get("q", "").strip()
     algo  = request.args.get("algo", "semantic")
-    page  = int(request.args.get("page", 1))
 
     if not state["chunks"]:
         return jsonify({"error": "no_document"})
@@ -142,8 +140,6 @@ def search():
             raw, tokens = bm25_search(state, query)
             used_algo = "bm25_fallback"
             pipeline  = {}
-        total = len(raw)
-        start = (page - 1) * SEARCH_PER_PAGE
         if used_algo == "semantic":
             results = [
                 {
@@ -153,10 +149,10 @@ def search():
                     "bi_pct":    r["bi_pct"],
                     "ce_pct":    r["ce_pct"],
                     "bi_rank":   r["bi_rank"],
-                    "ce_rank":   start + rank + 1,
+                    "ce_rank":   rank + 1,
                     "sim_words": r.get("sim_words", []),
                 }
-                for rank, r in enumerate(raw[start : start + SEARCH_PER_PAGE])
+                for rank, r in enumerate(raw)
             ]
         else:
             results = [
@@ -166,13 +162,11 @@ def search():
                     "snippet": highlight(r["text"], tokens),
                     "bm25":    r["bm25"],
                 }
-                for r in raw[start : start + SEARCH_PER_PAGE]
+                for r in raw
             ]
     else:
         raw, tokens = bm25_search(state, query)
-        total     = len(raw)
         used_algo = "bm25_fallback" if algo == "semantic" else "bm25"
-        start     = (page - 1) * SEARCH_PER_PAGE
         pipeline  = {}
         results   = [
             {
@@ -181,19 +175,17 @@ def search():
                 "snippet": highlight(r["text"], tokens),
                 "bm25":    r["bm25"],
             }
-            for r in raw[start : start + SEARCH_PER_PAGE]
+            for r in raw
         ]
 
     return jsonify({
         "results":  results,
-        "total":    total,
+        "total":    len(results),
         "query":    query,
         "tokens":   tokens,
         "algo":     used_algo,
         "time_ms":  round((time.time() - t0) * 1000, 1),
         "pipeline": pipeline,
-        "page":     page,
-        "pages":    math.ceil(total / SEARCH_PER_PAGE) if total else 1,
         "doc_meta": state["meta"],
     })
 
@@ -211,7 +203,7 @@ def status():
         "faiss_ready":    state["index"] is not None,
         "has_document":   len(state["chunks"]) > 0,
         "doc_meta":       state["meta"],
-        "active_sessions": session_count(),   # для моніторингу
+        "active_sessions": session_count(),
     })
 
 

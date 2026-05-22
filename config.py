@@ -61,7 +61,7 @@ CHUNK_MAX_LEN = 600
 SEARCH_TOP_K_BI = 60
 
 # SEARCH_PER_PAGE — кількість результатів на сторінку UI.
-SEARCH_PER_PAGE = 5
+SEARCH_PER_PAGE = 1000
 
 
 # ── Пороги Cross-Encoder (BGE-reranker-v2-m3) ───────────

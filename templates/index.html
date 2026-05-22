@@ -684,7 +684,7 @@ function doSearch(page){
   document.getElementById('meta').innerHTML='';
   document.getElementById('pag').innerHTML='';
   document.getElementById('pbox').classList.remove('show');
-  fetch(`/search?q=${encodeURIComponent(q)}&algo=${algo}&page=${page}`)
+  fetch(`/search?q=${encodeURIComponent(q)}&algo=${algo}`)
     .then(r=>r.json())
     .then(d=>{
       if(d.error==='no_document'){showEmptyState();showToast('Спочатку завантажте документ');return;}
@@ -759,12 +759,7 @@ function render(d){
     </div>`;
   }).join('');
 
-  const pag=document.getElementById('pag');
-  if(d.pages>1){
-    pag.innerHTML=Array.from({length:d.pages},(_,i)=>i+1)
-      .map(p=>`<button class="pb ${p===d.page?'active':''}" onclick="doSearch(${p})">${p}</button>`)
-      .join('');
-  }
+  document.getElementById('pag').innerHTML='';
 }
 
 // ── Toast ─────────────────────────────────────────
